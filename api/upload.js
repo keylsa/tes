@@ -2,7 +2,6 @@ const { Octokit } = require('@octokit/rest');
 const JSZip = require('jszip');
 const multiparty = require('multiparty');
 const fs = require('fs');
-const https = require('https');
 
 module.exports = async (req, res) => {
     // Set CORS headers
@@ -45,7 +44,12 @@ module.exports = async (req, res) => {
         const autoExtract = fields.autoExtract?.[0] === 'true';
         const token = fields.token?.[0];
 
-        console.log('Upload request:', { repo, path, autoExtract, filesCount: files.files?.length });
+        // Dapatkan base URL dari request
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const baseUrl = `${protocol}://${host}`;
+
+        console.log('Upload request:', { repo, path, autoExtract, filesCount: files.files?.length, baseUrl });
 
         if (!token) {
             return res.status(401).json({ error: 'No authentication token provided' });
@@ -99,54 +103,129 @@ module.exports = async (req, res) => {
             }
         }
 
-        // Fungsi untuk mengambil konten dari API readmd
-        function getReadmeContent() {
-            return new Promise((resolve, reject) => {
-                https.get('https://upload2-tan.vercel.app/api/readmd', (response) => {
-                    let data = '';
-                    
-                    response.on('data', (chunk) => {
-                        data += chunk;
-                    });
-                    
-                    response.on('end', () => {
-                        resolve(data);
-                    });
-                    
-                }).on('error', (error) => {
-                    reject(error);
-                });
-            });
-        }
-
         // Buat repository jika belum ada
         if (!repoExists) {
             try {
-                // Ambil konten dari API readmd untuk description
-                let readmeContent = '';
-                try {
-                    readmeContent = await getReadmeContent();
-                    console.log('Successfully fetched README content from API');
-                } catch (apiError) {
-                    console.error('Failed to fetch from API, using fallback:', apiError);
-                    readmeContent = `# ${repo}\n\nRepository created via GitHub Uploader\n\n© ${new Date().getFullYear()} Branpedia`;
-                }
+                const currentDate = new Date().toLocaleDateString('id-ID', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                });
 
-                // Buat repository dengan description dari API readmd
+                const currentYear = new Date().getFullYear();
+
+                // Description yang berisi semua teks dari README
+                const repoDescription = `📦 Repository: ${repo} | 👤 Author: @branpedia | ⚡ Created via GitHub Uploader | 📅 ${currentDate} | 📝 Repository created automatically via GitHub Uploader | 🔰 Author: Branpedia | 💻 Developer: Bran | 🚀 Project: GitHub Uploader | 🌐 Website: branpediaid.vercel.app | 📚 API Docs: Coming Soon | © ${currentYear} Branpedia`;
+
                 await octokit.repos.createForAuthenticatedUser({
                     name: repo,
                     private: false,
                     auto_init: true,
-                    description: readmeContent // Menggunakan konten dari API readmd sebagai description
+                    description: repoDescription
                 });
-                console.log('Repository created successfully with README content as description');
+                console.log('Repository created successfully');
+
+                // README.md sesuai permintaan (dengan HTML)
+                const readmeContent = `<div align="center">
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=28&duration=3000&pause=1000&color=2F81F7&center=true&vCenter=true&width=500&lines=%F0%9F%93%81+Repository+%3A+${repo};%F0%9F%91%A4+Author+%3A+%40branpedia;%F0%9F%9A%80+Created+via+GitHub+Uploader" alt="Typing SVG" />
+</div>
+
+<br>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Repository-${repo}-2F81F7?style=for-the-badge&logo=github" />
+  <img src="https://img.shields.io/badge/Author-%40branpedia-2F81F7?style=for-the-badge&logo=github" />
+</p>
+
+<br>
+
+## 📋 Repository Information
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="right" width="150"><strong>📦 Repository Name</strong></td>
+      <td><code>${repo}</code></td>
+    </tr>
+    <tr>
+      <td align="right"><strong>👤 Author</strong></td>
+      <td><a href="https://github.com/branpedia">@branpedia</a></td>
+    </tr>
+    <tr>
+      <td align="right"><strong>⚡ Created Via</strong></td>
+      <td><a href="https://branpediaid.vercel.app">GitHub Uploader</a></td>
+    </tr>
+    <tr>
+      <td align="right"><strong>📅 Created Date</strong></td>
+      <td>${currentDate}</td>
+    </tr>
+    <tr>
+      <td align="right"><strong>📝 Description</strong></td>
+      <td>Repository created automatically via GitHub Uploader</td>
+    </tr>
+  </table>
+</div>
+
+<br>
+
+## 👨‍💻 Author Details
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center" width="200">
+        <img src="https://github.com/branpedia.png" width="100" height="100" style="border-radius: 50%; border: 3px solid #2F81F7" />
+        <br>
+        <strong>@branpedia</strong>
+      </td>
+      <td>
+        <table>
+          <tr>
+            <td align="right"><strong>🔰 Author</strong></td>
+            <td>Branpedia</td>
+          </tr>
+          <tr>
+            <td align="right"><strong>💻 Developer</strong></td>
+            <td>Bran</td>
+          </tr>
+          <tr>
+            <td align="right"><strong>🚀 Project</strong></td>
+            <td>GitHub Uploader</td>
+          </tr>
+          <tr>
+            <td align="right"><strong>🌐 Website</strong></td>
+            <td><a href="https://branpediaid.vercel.app">branpediaid.vercel.app</a></td>
+          </tr>
+          <tr>
+            <td align="right"><strong>📚 API Docs</strong></td>
+            <td><em>Coming Soon</em></td>
+          </tr>
+          <tr>
+            <td align="right"><strong>© Copyright</strong></td>
+            <td>© ${currentYear} Branpedia</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<br>`;
+
+                // Upload README.md
+                await octokit.repos.createOrUpdateFileContents({
+                    owner: username,
+                    repo: repo,
+                    path: 'README.md',
+                    message: 'Add README.md',
+                    content: Buffer.from(readmeContent).toString('base64')
+                });
+                
+                console.log('README.md uploaded successfully');
                 
             } catch (error) {
-                console.error('Failed to create repository:', error);
-                return res.status(400).json({ 
-                    error: 'Failed to create repository',
-                    details: error.message
-                });
+                console.error('Failed to create repository or update README:', error);
+                // Tetap lanjutkan meskipun gagal update README
             }
         }
 
